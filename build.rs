@@ -140,6 +140,7 @@ fn main() {
       env::set_var("PYTHONDONTWRITEBYTECODE", "1");
     }
 
+    apply_loongarch64_patches();
     build_v8(is_asan);
     build_binding();
 
@@ -149,6 +150,48 @@ fn main() {
   print_prebuilt_src_binding_path();
 
   download_static_lib_binaries();
+}
+
+fn apply_loongarch64_patches() {
+  for (directory, patch) in [
+    ("build", "chromium-build.patch"),
+    ("third_party/simdutf", "simdutf.patch"),
+  ] {
+    let patch = Path::new("patches/loongarch64").join(patch);
+    println!("cargo:rerun-if-changed={}", patch.display());
+    let patch = fs::canonicalize(&patch).expect("Missing LoongArch64 patch");
+    let check = |reverse: bool| {
+      let mut command = Command::new("git");
+      command.args(["-C", directory, "apply", "--check"]);
+      if reverse {
+        command.arg("--reverse");
+      }
+      command
+        .arg(&patch)
+        .output()
+        .expect("Could not run git apply")
+    };
+    if check(true).status.success() {
+      continue;
+    }
+    let result = check(false);
+    assert!(
+      result.status.success(),
+      "Cannot apply {}: {}",
+      patch.display(),
+      String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+      Command::new("git")
+        .args(["-C", directory, "apply"])
+        .arg(&patch)
+        .status()
+        .expect("Could not apply LoongArch64 patch")
+        .success(),
+      "Failed to apply {}",
+      patch.display()
+    );
+  }
 }
 
 fn acquire_lock() -> LockFile {
@@ -509,6 +552,15 @@ fn build_v8(is_asan: bool) {
       maybe_install_sysroot("amd64");
     }
   }
+  if target_arch == "loongarch64" {
+    gn_args.push(r#"target_cpu="loong64""#.to_string());
+    gn_args.push(r#"v8_target_cpu="loong64""#.to_string());
+    if target_os == "linux" {
+      gn_args.push("use_sysroot=true".to_string());
+      // Executable build tools and the LoongArch simulator run on the x64 host.
+      maybe_install_sysroot("amd64");
+    }
+  }
   if target_arch == "arm" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
     gn_args.push(r#"v8_target_cpu="arm""#.to_string());
@@ -537,6 +589,9 @@ fn build_v8(is_asan: bool) {
   let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
   if target_env == "musl" && target_os == "linux" {
     gn_args.push("use_musl=true".to_string());
+    // The malloc shim requires glibc APIs (sys/cdefs.h and mallinfo).
+    // Keep PartitionAlloc itself enabled for V8 sandbox allocations.
+    gn_args.push("use_allocator_shim=false".to_string());
     // V8-as-a-library has no glib dependency; skip it so a musl target_sysroot
     // doesn't send pkg-config looking for glib inside the sysroot.
     gn_args.push("use_glib=false".to_string());
@@ -561,7 +616,7 @@ fn build_v8(is_asan: bool) {
         // host side of the aarch64/riscv64 cross builds.
         maybe_install_sysroot("amd64");
       }
-      "aarch64" => {
+      "aarch64" | "loongarch64" => {
         // Cross build (x64 host -> arm64 target). The host (clang_x64) and
         // snapshot (clang_x64_v8_arm64) toolchains are already non-default, so
         // the target-scoped `use_musl` guard keeps them glibc automatically --
@@ -569,7 +624,7 @@ fn build_v8(is_asan: bool) {
         // sysroots are set by the aarch64 cross-compilation block above.
       }
       other => panic!(
-        "musl builds are only supported for x86_64 and aarch64 (got {other})"
+        "musl builds are only supported for x86_64, aarch64 and loongarch64 (got {other})"
       ),
     }
 

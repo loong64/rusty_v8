@@ -1,0 +1,23 @@
+diff --git a/config/clang/BUILD.gn b/config/clang/BUILD.gn
+index c38670a24..2987ef188 100644
+--- a/config/clang/BUILD.gn
++++ b/config/clang/BUILD.gn
+@@ -267,7 +267,8 @@ clang_lib("compiler_builtins") {
+     } else {
+       assert(false, "unsupported target_platform=$target_platform")
+     }
+-  } else if (current_cpu != "ppc64" && current_cpu != "s390x") {
++  } else if (current_cpu != "ppc64" && current_cpu != "s390x" &&
++             current_cpu != "loong64") {
+     libname = "builtins"
+   }
+ }
+diff --git a/rust/known-target-triples.txt b/rust/known-target-triples.txt
+index 4a21c8ad4..d73a3310c 100644
+--- a/rust/known-target-triples.txt
++++ b/rust/known-target-triples.txt
+@@ -45,3 +45,4 @@ powerpc64le-unknown-linux-gnu
+ s390x-unknown-linux-gnu
+ x86_64-unknown-linux-musl
+ aarch64-unknown-linux-musl
++loongarch64-unknown-linux-musl

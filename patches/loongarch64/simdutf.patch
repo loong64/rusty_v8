@@ -1,0 +1,12 @@
+diff --git a/simdutf.h b/simdutf.h
+index a7a27a6..47a04aa 100644
+--- a/simdutf.h
++++ b/simdutf.h
+@@ -873,6 +873,7 @@ struct simdutf_riscv_hwprobe {
+ 
+ #if defined(__loongarch__) && defined(__linux__)
+   #include <sys/auxv.h>
++  #include <asm/hwcap.h>
+ // bits/hwcap.h
+ // #define HWCAP_LOONGARCH_LSX             (1 << 4)
+ // #define HWCAP_LOONGARCH_LASX            (1 << 5)
